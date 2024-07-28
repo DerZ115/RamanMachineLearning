@@ -10,8 +10,9 @@ from sklearn.base import (BaseEstimator, MetaEstimatorMixin, clone,
                           is_classifier)
 from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn.model_selection import (GridSearchCV, KFold, ParameterGrid,
-                                     StratifiedKFold, cross_val_predict,
-                                     cross_validate)
+                                     StratifiedKFold, LeaveOneOut, LeaveOneGroupOut,
+                                     ShuffleSplit, StratifiedShuffleSplit, GroupShuffleSplit,
+                                     cross_val_predict, cross_validate)
 from sklearn.pipeline import Pipeline
 from tqdm.autonotebook import trange
 
@@ -25,6 +26,8 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
         estimator,
         param_grid=None,
         scoring="accuracy",
+        cv=None,
+        nested=True,
         refit=True,
         coef_func=None,
         explainer=False,
@@ -38,6 +41,8 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
         self.estimator = estimator
         self.param_grid = param_grid
         self.scoring = scoring
+        self.cv = cv
+        self.nested = nested
         self.refit = refit
         self.coef_func = coef_func
         self.explainer = explainer
@@ -47,7 +52,11 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
         self.verbose = verbose
         self.feature_names = feature_names
 
-    def fit(self, X, y=None):
+        if self.cv.lower() == "leaveonegroupout":
+            import sklearn
+            sklearn.set_config(enable_metadata_routing=True)
+
+    def fit(self, X, y=None, groups=None):
 
         self.do_gs = bool(self.param_grid)
         self.multi_score = not isinstance(self.scoring, str)
@@ -62,11 +71,9 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
             cv_logger.debug("Getting CV splits")
             outer_cv, inner_cv = self._get_cv(random_state=i)
 
-            dummy_results = self._get_dummy_results(X, y, outer_cv)
-
             if self.do_gs:
                 cv_logger.debug("Starting grid search")
-                estimator = self._do_gridsearch(X, y, inner_cv)
+                estimator = self._do_gridsearch(X, y, inner_cv, groups=groups)
                 cv_logger.debug("Grid search complete. Storing results...")
                 self._store_cv_results(estimator, i)
                 ct_jobs = 1
@@ -78,6 +85,7 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
             cv_logger.debug("Starting cross testing")
             ct_results_tmp = cross_validate(estimator,
                                             X, y,
+                                            params={"groups": groups} if self.cv.lower() == "leaveonegroupout" else None,
                                             scoring=self.scoring,
                                             cv=outer_cv,
                                             return_estimator=True,
@@ -87,8 +95,7 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
             cv_logger.debug("Cross testing complete. Storing results...")
             self._store_ct_results(X, y, i,
                                    outer_cv,
-                                   dummy_results,
-                                   ct_results_tmp)
+                                   ct_results_tmp, groups=groups)
 
         if self.explainer:
             cv_logger.debug("Storing SHAP results")
@@ -143,23 +150,57 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
 
     def _get_cv(self, random_state=None):
 
-        if is_classifier(self.estimator):
-            # StratifiedKFold to preserve class percentages
-            outer_cv = StratifiedKFold(
-                self.n_folds, shuffle=True, random_state=random_state)
-            inner_cv = StratifiedKFold(
-                self.n_folds, shuffle=True, random_state=random_state)
+        if self.cv is None:
+            if is_classifier(self.estimator):
+                # StratifiedKFold to preserve class percentages
+                if self.nested:
+                    outer_cv = StratifiedKFold(
+                        self.n_folds, shuffle=True, random_state=random_state)
+                else:
+                    outer_cv = StratifiedShuffleSplit(
+                        n_splits=1, random_state=random_state)
+                inner_cv = StratifiedKFold(
+                    self.n_folds, shuffle=True, random_state=random_state)
+            else:
+                if self.nested:
+                    outer_cv = KFold(
+                        self.n_folds, shuffle=True, random_state=random_state)
+                else:
+                    outer_cv = ShuffleSplit(
+                        n_splits=1, random_state=random_state)
+                inner_cv = KFold(self.n_folds, shuffle=True,
+                                 random_state=random_state)
         else:
-            outer_cv = KFold(self.n_folds, shuffle=True,
-                             random_state=random_state)
-            inner_cv = KFold(self.n_folds, shuffle=True,
-                             random_state=random_state)
+
+            if self.cv.lower() == "kfold":
+                outer_cv = KFold(self.n_folds, shuffle=True, random_state=random_state)
+                inner_cv = KFold(self.n_folds, shuffle=True, random_state=random_state)
+            elif self.cv.lower() == "stratifiedkfold":
+                outer_cv = StratifiedKFold(self.n_folds, shuffle=True, random_state=random_state)
+                inner_cv = StratifiedKFold(self.n_folds, shuffle=True, random_state=random_state)
+            elif self.cv.lower() == "leaveoneout":
+                outer_cv = LeaveOneOut()
+                inner_cv = LeaveOneOut()
+            elif self.cv.lower() == "leaveonegroupout":
+                outer_cv = LeaveOneGroupOut()
+                inner_cv = LeaveOneGroupOut()
+            else:
+                raise ValueError(f"Unknown Cross-Validation Method: {self.cv}")
+
+            if not self.nested:
+                if self.cv.lower() == "stratifiedkfold":
+                    outer_cv = StratifiedShuffleSplit(n_splits=1, random_state=random_state)
+                elif self.cv.lower() == "leaveonegroupout":
+                    outer_cv = GroupShuffleSplit(n_splits=1, random_state=random_state)
+                else:
+                    outer_cv = ShuffleSplit(n_splits=1, random_state=random_state)
 
         return outer_cv, inner_cv
 
     def _get_dummy_results(self, X, y, outer_cv):
         if is_classifier(self.estimator):
             cv_logger.debug("Getting predictions from dummy classifier")
+
             dummy_results = cross_val_predict(
                 DummyClassifier(), X, y, cv=outer_cv)
         else:
@@ -170,7 +211,7 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
         return dummy_results
 
 
-    def _do_gridsearch(self, X, y, cv):
+    def _do_gridsearch(self, X, y, cv, groups=None):
 
         gridsearch = GridSearchCV(self.estimator,
                                   param_grid=self.param_grid,
@@ -181,7 +222,7 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
                                   verbose=self.verbose,
                                   n_jobs=self.n_jobs)
 
-        gridsearch.fit(X, y)
+        gridsearch.fit(X, y, groups=groups if self.cv.lower() == "leaveonegroupout" else None)
 
         return gridsearch
 
@@ -201,7 +242,7 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
             self.param_results_[name].append(val)
 
 
-    def _store_ct_results(self, X, y, i, outer_cv, dummy_results, ct_results_tmp):
+    def _store_ct_results(self, X, y, i, outer_cv, ct_results_tmp, groups=None):
         if self.multi_score:
             for score in self.scoring:
                 self.ct_results_[f"train_{score}"].append(ct_results_tmp[f"train_{score}"].mean())
@@ -221,7 +262,7 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
             shap_base_vals = np.zeros(len(y))
             shap_data = np.zeros((len(y), X.shape[1]))
 
-        for j, (train, test) in enumerate(outer_cv.split(X, y)):
+        for j, (train, test) in enumerate(outer_cv.split(X, y, groups=groups)):
             cv_logger.debug(f"Storing CT results of fold {j}")
             X_train, X_test = X[train], X[test]
 
@@ -260,13 +301,6 @@ class CrossValidator(BaseEstimator, MetaEstimatorMixin):
                 shap_vals[test, :] = shap_tmp.values
                 shap_base_vals[test] = shap_tmp.base_values
                 shap_data[test, :] = shap_tmp.data
-
-        cv_logger.debug("Performing McNemar test")
-        mcn_table = mcnemar_table(y.ravel(),
-                                  dummy_results.ravel(),
-                                  self.predictions_["y_pred"][i].ravel())
-        _, p_val = mcnemar(mcn_table)
-        self.ct_results_["p_value"].append(p_val)
 
         cv_logger.debug("Averaging results")
         if self.coef_func:

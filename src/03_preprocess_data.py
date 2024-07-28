@@ -44,7 +44,7 @@ logger.addHandler(handler_f)
 
 
 def preprocess(data, limits=(None, None), sg_window=15):
-    X = data.drop(columns=["label", "file"], errors="ignore")
+    X = data.drop(columns=["label", "file", "group"], errors="ignore")
     wns = np.asarray(X.columns.astype(float))
     X = np.asarray(X)
     y = np.asarray(data.label)
@@ -68,6 +68,7 @@ def preprocess(data, limits=(None, None), sg_window=15):
     data_prep = pd.DataFrame(X, columns=wns_reduced)
     data_prep.insert(0, "label", y)
     data_prep.insert(1, "file", files)
+    data_prep.insert(2, "group", data.group)
 
     return data_prep
 

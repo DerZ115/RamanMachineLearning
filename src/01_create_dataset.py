@@ -40,7 +40,7 @@ handler_f.setFormatter(format_f)
 logger.addHandler(handler_c)
 logger.addHandler(handler_f)
 
-def create_dataset(dirs_in, labels):
+def create_dataset(dirs_in, labels, grouped=False):
     logger.info("Loading data")
     dirs_in = [Path(dir) for dir in dirs_in]
     if not labels:
@@ -53,6 +53,7 @@ def create_dataset(dirs_in, labels):
     wns = []
     lab = []
     files = []
+    groups = []
 
     for i, dir_in in enumerate(dirs_in):
         logger.info(f"Loading files from {dir_in}")
@@ -77,6 +78,12 @@ def create_dataset(dirs_in, labels):
             data.append(filedata[:, 1])
             files.append(file)
 
+            if grouped:
+                if m := re.match(r"EXTRACT_Multi_1[ABCD](?:_2)?_Methode\d_(\d)_\d+\.\d\.TXT", file.name):
+                    groups.append(m.group(1))
+                elif m := re.match(r"(\d)_.+\.(?:tsv|\d+)", file.name):
+                    groups.append(m.group(1))
+
 
 
     if not all([np.array_equal(element, wns[0]) for element in wns]):
@@ -87,6 +94,7 @@ def create_dataset(dirs_in, labels):
     data = pd.DataFrame(data, columns=wns)
     data.insert(0, "label", lab)
     data.insert(1, "file", files)
+    data.insert(2, "group", groups)
 
     logger.info("Finished loading data.")
     return data
@@ -116,7 +124,7 @@ if __name__ == "__main__":
         logger.debug("Creating data directory")
         os.makedirs(datadir)
 
-    dataset = create_dataset(args.dir, args.label)
+    dataset = create_dataset(args.dir, args.label, grouped=True)
 
     logger.info(f"Saving data to file {args.out}")
     dataset.to_csv(args.out, index=False)

@@ -88,7 +88,9 @@ do
                 -p "${PCA_COMP[@]}" \
                 -n "${NMF_COMP[@]}" \
                 -c "${FA_CLUST[@]}" \
-                -d "${PEAK_DIST[@]}"
+                -d "${PEAK_DIST[@]}" \
+                --crossval $CV \
+                ${NESTED:+--nested}
 
         elif [ "${REPLY}" == 5 ]
         then

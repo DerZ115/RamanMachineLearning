@@ -63,6 +63,8 @@ def parse_args():
                         help="Number of folds for crossvalidation.", default=5)
     parser.add_argument("-j", "--jobs", metavar="INT", type=int, action="store",
                         help="Number of parallel jobs. Set as -1 to use all available processors", default=1)
+    parser.add_argument("--crossval", metavar="CROSSVAL", type=str, action="store", default=None)
+    parser.add_argument("--nested", action="store_true")
     parser.add_argument("--tree-alpha", metavar=("min", "max", "n steps"), type=int_float, nargs=3, action="store", 
                         help="Used to set the range of alpha values for pruning of decision trees using numpy.logspace.", 
                         default=[-2, 2, 5])
@@ -95,7 +97,7 @@ if __name__ == "__main__":
     data = load_data(path_in)
 
     logger.info("Parsing data")
-    X = data.drop(columns=["label", "file"], errors="ignore")
+    X = data.drop(columns=["label", "file", "group"], errors="ignore")
     wns = np.asarray(X.columns.astype(float))
     X = np.asarray(X)
     y = np.asarray(data.label)
@@ -129,11 +131,13 @@ if __name__ == "__main__":
                         param_grid,
                         scoring=args.scoring,
                         refit=refit,
+                        cv=args.crossval,
+                        nested=args.nested,
                         feature_names=wns,
                         n_folds=args.folds,
                         n_trials=args.trials,
                         n_jobs=args.jobs
-                        ).fit(X, y)
+                        ).fit(X, y, groups=data.group)
 
     cv.to_csv(tree_path_out)
     export_graphviz(cv.estimator_, 
@@ -172,12 +176,14 @@ if __name__ == "__main__":
                         param_grid,
                         scoring=args.scoring,
                         refit=refit,
+                        cv=args.crossval,
+                        nested=args.nested,
                         n_folds=args.folds,
                         n_trials=args.trials,
                         n_jobs=args.jobs,
-                        explainer=True,
+                        #explainer=True,
                         feature_names=wns
-                        ).fit(X, y)
+                        ).fit(X, y, groups=data.group)
 
     cv.to_csv(rf_path_out)
     
@@ -207,12 +213,14 @@ if __name__ == "__main__":
                         param_grid,
                         scoring=args.scoring,
                         refit=refit,
+                        cv=args.crossval,
+                        nested=args.nested,
                         n_folds=args.folds,
                         n_trials=args.trials,
                         n_jobs=args.jobs,
-                        explainer=True,
+                        #explainer=True,
                         feature_names=wns
-                        ).fit(X, y)
+                        ).fit(X, y, groups=data.group)
 
     cv.to_csv(gbdt_path_out)
     

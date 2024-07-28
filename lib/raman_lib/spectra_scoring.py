@@ -253,7 +253,12 @@ def score_sort_spectra(data,
     else:
         files = None
 
-    data = data.drop(columns=["label", "file"])
+    if "group" in data.columns:
+        groups = data.group
+    else:
+        groups = None
+
+    data = data.drop(columns=["label", "file", "group"])
 
     data = limit_range(data, limits)
 

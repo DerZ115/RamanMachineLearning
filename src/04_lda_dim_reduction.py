@@ -66,6 +66,8 @@ def parse_args():
                         help="Number of folds for crossvalidation.", default=5)
     parser.add_argument("-j", "--jobs", metavar="INT", type=int, action="store", 
                         help="Number of parallel jobs. Set as -1 to use all available processors", default=1)
+    parser.add_argument("--crossval", metavar="CROSSVAL", type=str, action="store", default=None)
+    parser.add_argument("--nested", action="store_true")
     parser.add_argument("-p", "--pca-components", metavar=("min", "max", "step"), type=int, nargs=3, action="store", 
                         help="Used to set the range of principal components for crossvalidation.", default=[1, 20, 1])
     parser.add_argument("-n", "--nmf-components", metavar=("min", "max", "step"), type=int, nargs=3, action="store", 
@@ -97,7 +99,7 @@ if __name__ == "__main__":
     data = load_data(path_in)
     
     logger.info("Parsing data")
-    X = data.drop(columns=["label", "file"], errors="ignore")
+    X = data.drop(columns=["label", "file", "group"], errors="ignore")
     wns = np.asarray(X.columns.astype(float))
     X = np.asarray(X)
     y = np.asarray(data.label)
@@ -123,12 +125,14 @@ if __name__ == "__main__":
     logger.info("Starting cross validation")
     cv = CrossValidator(clf,
                         scoring=args.scoring,
+                        cv=args.crossval,
+                        nested=args.nested,
                         coef_func=lambda x: x.scalings_,
                         feature_names=wns,
                         n_folds=args.folds,
                         n_trials=args.trials,
                         n_jobs=args.jobs
-                        ).fit(X, y)
+                        ).fit(X, y, groups=data.group)
 
     cv.to_csv(lda_path_out)
     logger.info("Cross validation complete")
@@ -155,6 +159,8 @@ if __name__ == "__main__":
     cv = CrossValidator(clf,
                         param_grid,
                         scoring=args.scoring,
+                        cv=args.crossval,
+                        nested=args.nested,
                         refit=refit,
                         coef_func=lambda x: np.matmul(x[0].components_.T,
                                                       x[1].scalings_),
@@ -162,77 +168,81 @@ if __name__ == "__main__":
                         n_folds=args.folds,
                         n_trials=args.trials,
                         n_jobs=args.jobs
-                        ).fit(X, y)
+                        ).fit(X, y, groups=data.group)
 
     cv.to_csv(pca_path_out)
     logger.info("Cross validation complete")
 
-    # NMF-LDA
-
-    logger.info("Classifier 3: NMF-LDA")
-    nmf_path_out = path_out / "nmf_lda"
-
-    if not os.path.exists(nmf_path_out):
-        os.makedirs(nmf_path_out)
-
-    clf = Pipeline([("nmf", NMF(init="nndsvda", tol=1e-2, max_iter=5000)),
-                    ("lda", LinearDiscriminantAnalysis())])
-
-    param_grid = {"nmf__n_components": range(
-        args.nmf_components[0],
-        args.nmf_components[1],
-        args.nmf_components[2]
-    )}
-
-    logger.info("Starting cross validation")
-    cv = CrossValidator(clf,
-                        param_grid,
-                        scoring=args.scoring,
-                        refit=refit,
-                        coef_func=lambda x: np.matmul(x[0].components_.T,
-                                                    x[1].scalings_),
-                        feature_names=wns,
-                        n_folds=args.folds,
-                        n_trials=args.trials,
-                        n_jobs=args.jobs
-                        ).fit(X, y)
-    
-    cv.to_csv(nmf_path_out)
-    logger.info("Cross validation complete")
-
-    # FA-LDA
-
-    logger.info("Classifier 4: FA-LDA")
-    fa_path_out = path_out / "fa_lda"
-
-    if not os.path.exists(fa_path_out):
-        os.makedirs(fa_path_out)
-
-    clf = Pipeline([("agglo", FeatureAgglomeration(connectivity=np.diag(np.ones(len(wns))) +
-                                                                np.diag(np.ones(len(wns)-1), 1) +
-                                                                np.diag(np.ones(len(wns)-1), -1))),
-                    ("lda", LinearDiscriminantAnalysis())])
-
-    param_grid = {"agglo__n_clusters": range(
-        args.fa_clusters[0],
-        args.fa_clusters[1],
-        args.fa_clusters[2]
-    )}
-
-    logger.info("Starting cross validation")
-    cv = CrossValidator(clf,
-                        param_grid,
-                        scoring=args.scoring,
-                        refit=refit,
-                        coef_func=lambda x: x[1].scalings_[x[0].labels_],
-                        feature_names=wns,
-                        n_folds=args.folds,
-                        n_trials=args.trials,
-                        n_jobs=args.jobs
-                        ).fit(X, y)
-
-    cv.to_csv(fa_path_out)
-    logger.info("Cross validation complete")
+    # # NMF-LDA
+    #
+    # logger.info("Classifier 3: NMF-LDA")
+    # nmf_path_out = path_out / "nmf_lda"
+    #
+    # if not os.path.exists(nmf_path_out):
+    #     os.makedirs(nmf_path_out)
+    #
+    # clf = Pipeline([("nmf", NMF(init="nndsvda", tol=1e-2, max_iter=5000)),
+    #                 ("lda", LinearDiscriminantAnalysis())])
+    #
+    # param_grid = {"nmf__n_components": range(
+    #     args.nmf_components[0],
+    #     args.nmf_components[1],
+    #     args.nmf_components[2]
+    # )}
+    #
+    # logger.info("Starting cross validation")
+    # cv = CrossValidator(clf,
+    #                     param_grid,
+    #                     scoring=args.scoring,
+    #                     cv=args.crossval,
+    #                     nested=args.nested,
+    #                     refit=refit,
+    #                     coef_func=lambda x: np.matmul(x[0].components_.T,
+    #                                                 x[1].scalings_),
+    #                     feature_names=wns,
+    #                     n_folds=args.folds,
+    #                     n_trials=args.trials,
+    #                     n_jobs=args.jobs
+    #                     ).fit(X, y, groups=data.group)
+    #
+    # cv.to_csv(nmf_path_out)
+    # logger.info("Cross validation complete")
+    #
+    # # FA-LDA
+    #
+    # logger.info("Classifier 4: FA-LDA")
+    # fa_path_out = path_out / "fa_lda"
+    #
+    # if not os.path.exists(fa_path_out):
+    #     os.makedirs(fa_path_out)
+    #
+    # clf = Pipeline([("agglo", FeatureAgglomeration(connectivity=np.diag(np.ones(len(wns))) +
+    #                                                             np.diag(np.ones(len(wns)-1), 1) +
+    #                                                             np.diag(np.ones(len(wns)-1), -1))),
+    #                 ("lda", LinearDiscriminantAnalysis())])
+    #
+    # param_grid = {"agglo__n_clusters": range(
+    #     args.fa_clusters[0],
+    #     args.fa_clusters[1],
+    #     args.fa_clusters[2]
+    # )}
+    #
+    # logger.info("Starting cross validation")
+    # cv = CrossValidator(clf,
+    #                     param_grid,
+    #                     scoring=args.scoring,
+    #                     cv=args.crossval,
+    #                     nested=args.nested,
+    #                     refit=refit,
+    #                     coef_func=lambda x: x[1].scalings_[x[0].labels_],
+    #                     feature_names=wns,
+    #                     n_folds=args.folds,
+    #                     n_trials=args.trials,
+    #                     n_jobs=args.jobs
+    #                     ).fit(X, y, groups=data.group)
+    #
+    # cv.to_csv(fa_path_out)
+    # logger.info("Cross validation complete")
 
     # Peak-LDA
 
@@ -255,6 +265,8 @@ if __name__ == "__main__":
     cv = CrossValidator(clf,
                         param_grid,
                         scoring=args.scoring,
+                        cv=args.crossval,
+                        nested=args.nested,
                         refit=refit,
                         coef_func=lambda x: np.matmul(x[0].peaks_.T,
                                                       x[1].scalings_),
@@ -262,7 +274,7 @@ if __name__ == "__main__":
                         n_folds=args.folds,
                         n_trials=args.trials,
                         n_jobs=args.jobs
-                        ).fit(X, y)
+                        ).fit(X, y, groups=data.group)
 
     cv.to_csv(peak_path_out)
     logger.info("Cross validation complete")
