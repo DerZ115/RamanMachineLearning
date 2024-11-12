@@ -7,17 +7,19 @@ This repository contains the machine-learning-based data analysis workflow for R
 After downloading this tool, first adjust the contents of `raman_ml.conf` according to your needs. The following tables list the parameters that can be adjusted.
 
 ### General Parameters
-| Parameter | Description |
-| --------- | ----------- |
-| `FILE_PREFIX` | Filename prefix that will be used for all output files |
-| `N_TRIALS` | Number of randomized repetitions for cross-validation |
-| `N_FOLDS` | Number of folds for (nested) k-fold cross-validation |
-| `N_CORES` | Number of CPU cores that will be used (-1 for all available) |
-| `SCORING` | Performance metrics to be calculated during cross-validation |
-| `CONDA_DIR` | Directory of your *conda* installation |
-| `ENV_NAME` | Name that will be used for the *conda* environment |
-| `DIR1`/`DIR2` | Directories where the individual spectra are stored |
-| `LAB1`/`LAB2` | Class labels corresponding to `DIR1`/`DIR2` |
+| Parameter | Description                                                                                                                                     |
+| --------- |-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `FILE_PREFIX` | Filename prefix that will be used for all output files                                                                                          |
+| `N_TRIALS` | Number of randomized repetitions for cross-validation                                                                                           |
+| `N_FOLDS` | Number of folds for (nested) k-fold cross-validation                                                                                            |
+| `N_CORES` | Number of CPU cores that will be used (-1 for all available)                                                                                    |
+| `CV` | Cross-validation strategy to use. Must be one of: `kfold`, `stratifiedkfold`, `leaveoneout`, `leaveonegroupout`                                 |
+| `NESTED` | Whether to perform nested cross-validation. Comment out or set to empty string `''` for non-nested CV, set to any non-empty value for nested CV | 
+| `SCORING` | Performance metrics to be calculated during cross-validation                                                                                    |
+| `CONDA_DIR` | Directory of your *conda* installation                                                                                                          |
+| `ENV_NAME` | Name that will be used for the *conda* environment                                                                                              |
+| `DIR1`/`DIR2` | Directories where the individual spectra are stored                                                                                             |
+| `LAB1`/`LAB2` | Class labels corresponding to `DIR1`/`DIR2`                                                                                                     |
 
 ### QC/Preprocessing Parameters
 | Parameter | Description |

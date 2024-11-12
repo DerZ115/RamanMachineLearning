@@ -101,7 +101,9 @@ do
                 --logreg-l1-c "${LR1_C[@]}" \
                 --logreg-l2-c "${LR2_C[@]}" \
                 --svm-l1-c "${SVM1_C[@]}" \
-                --svm-l2-c "${SVM2_C[@]}"
+                --svm-l2-c "${SVM2_C[@]}" \
+                --crossval $CV \
+                ${NESTED:+--nested}
 
         elif [ "${REPLY}" == 6 ]
         then
@@ -111,7 +113,9 @@ do
                 -k $N_FOLDS -j $N_CORES \
                 --tree-alpha "${DT_ALPHA[@]}" \
                 --rf-feature-sample "${RF_FEATURE_SAMPLE[@]}" \
-                --gbdt-learning-rate "${GBDT_LEARNING_RATE[@]}"
+                --gbdt-learning-rate "${GBDT_LEARNING_RATE[@]}" \
+                --crossval $CV \
+                ${NESTED:+--nested}
                 
         elif [ "${REPLY}" == "all" ]
         then
@@ -144,7 +148,9 @@ do
                 -p "${PCA_COMP[@]}" \
                 -n "${NMF_COMP[@]}" \
                 -c "${FA_CLUST[@]}" \
-                -d "${PEAK_DIST[@]}"
+                -d "${PEAK_DIST[@]}" \
+                --crossval $CV \
+                ${NESTED:+--nested}
 
             # Regularized models
             python ./src/05_regularized_models.py \
@@ -154,7 +160,9 @@ do
                 --logreg-l1-c "${LR1_C[@]}" \
                 --logreg-l2-c "${LR2_C[@]}" \
                 --svm-l1-c "${SVM1_C[@]}" \
-                --svm-l2-c "${SVM2_C[@]}"
+                --svm-l2-c "${SVM2_C[@]}" \
+                --crossval $CV \
+                ${NESTED:+--nested}
 
             # Tree-based models
             python ./src/06_tree_based_models.py \
@@ -163,7 +171,9 @@ do
                 -k $N_FOLDS -j $N_CORES \
                 --tree-alpha "${DT_ALPHA[@]}" \
                 --rf-feature-sample "${RF_FEATURE_SAMPLE[@]}" \
-                --gbdt-learning-rate "${GBDT_LEARNING_RATE[@]}"
+                --gbdt-learning-rate "${GBDT_LEARNING_RATE[@]}" \
+                --crossval $CV \
+                ${NESTED:+--nested}
 
         else
             echo "Please choose one of the options from the list."
